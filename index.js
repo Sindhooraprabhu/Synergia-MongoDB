@@ -1,105 +1,107 @@
 import express from "express";
+import dotenv from "dotenv";
+import { connectDB } from "./config/db.js";
+import { Event } from "./models/events.js";
+
+dotenv.config();
 
 const app = express();
 const PORT = 5001;
 
-
 app.use(express.json());
 
 
-let bookings = [
-    {
-        id: 1,
-        name: "Gaurav",
-        branch: "CS",
-        year: "2nd",
-        email: "gaurav2@gmail.com",
-        event: "Coding Competition"
+connectDB();
+
+
+app.post("/api/bookings", async (req, res) => {
+    try {
+        const event = new Event(req.body);
+        await event.save();
+        res.status(201).json({ message: "Event created successfully", event });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
-];
+});
 
+app.get("/api/bookings", async (req, res) => {
+    try {
+        const events = await Event.find();
+        res.status(200).json(events);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
-app.get("/api/bookings", (req, res) => {
-    res.status(200).json(bookings);
+app.get("/api/bookings/:id", async (req, res) => {
+    try {
+        const event = await Event.findById(req.params.id);
+        if (!event) {
+            return res.status(404).json({ message: "Event not found" });
+        }
+        res.status(200).json(event);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.put("/api/bookings/:id", async (req, res) => {
+    try {
+        const event = await Event.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        if (!event) {
+            return res.status(404).json({ message: "Event not found" });
+        }
+        res.status(200).json({ message: "Event updated successfully", event });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 
-app.post("/api/bookings", (req, res) => {
-    const { name, branch, year, email, event } = req.body;
-
-    if (!name || !branch || !year || !email || !event) {
-        return res.status(400).json({ message: "All fields are required" });
+app.delete("/api/bookings/:id", async (req, res) => {
+    try {
+        const event = await Event.findByIdAndDelete(req.params.id);
+        if (!event) {
+            return res.status(404).json({ message: "Event not found" });
+        }
+        res.status(200).json({ message: "Event deleted successfully", event });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
-
-    const newBooking = {
-        id: bookings.length + 1,
-        name,
-        branch,
-        year,
-        email,
-        event,
-    };
-
-    bookings.push(newBooking);
-
-    res.status(201).json({
-        message: "Booking added successfully",
-        booking: newBooking,
-    });
 });
 
 
-app.get("/api/bookings/:id", (req, res) => {
-    const booking = bookings.find((b) => b.id == req.params.id);
 
-    if (!booking) {
-        return res.status(404).json({ message: "Booking not found" });
+
+app.get("/api/bookings/search", async (req, res) => {
+    try {
+        const { email } = req.query;
+        if (!email) {
+            return res.status(400).json({ message: "Email query parameter is required" });
+        }
+
+        const events = await Event.find({ email: { $regex: email, $options: "i" } });
+        res.status(200).json(events);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
-
-    res.status(200).json(booking);
 });
 
 
-app.put("/api/bookings/:id", (req, res) => {
-    const index = bookings.findIndex((b) => b.id == req.params.id);
+app.get("/api/bookings/filter", async (req, res) => {
+    try {
+        const { event } = req.query;
+        if (!event) {
+            return res.status(400).json({ message: "Event query parameter is required" });
+        }
 
-    if (index === -1) {
-        return res.status(404).json({ message: "Booking not found" });
+        const events = await Event.find({ event: { $regex: event, $options: "i" } });
+        res.status(200).json(events);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
-
-    const { name, branch, year, email, event } = req.body;
-
-
-    bookings[index] = {
-        ...bookings[index],
-        name: name || bookings[index].name,
-        branch: branch || bookings[index].branch,
-        year: year || bookings[index].year,
-        email: email || bookings[index].email,
-        event: event || bookings[index].event,
-    };
-
-    res.status(200).json({
-        message: "Booking updated successfully",
-        booking: bookings[index],
-    });
 });
 
-
-app.delete("/api/bookings/:id", (req, res) => {
-    const index = bookings.findIndex((b) => b.id == req.params.id);
-
-    if (index === -1) {
-        return res.status(404).json({ message: "Booking not found" });
-    }
-
-    const deletedBooking = bookings.splice(index, 1);
-
-    res.status(200).json({
-        message: "Booking cancelled successfully",
-        deletedBooking,
-    });
-});
 
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
